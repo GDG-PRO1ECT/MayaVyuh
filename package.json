@@ -1,8 +1,10 @@
 {
-  "name": "temp-app",
+  "name": "mayavyuh",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "description": "MayaVyuh: The Prompt War — Ancient oracle trial of vision, language and AI",
   "type": "module",
+  "homepage": "https://rajshree482.github.io/MayaVyuh/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
