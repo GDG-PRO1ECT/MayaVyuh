@@ -3,7 +3,7 @@ const dns = require('dns');
 // Set DNS servers to Google's public DNS to resolve MongoDB Atlas SRV records reliably
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const express = require('express');
 const http = require('http');
@@ -216,6 +216,17 @@ app.post('/api/admin/images', async (req, res) => {
 
 app.delete('/api/admin/images/:id', async (req, res) => {
   try {
+    const image = await ImageBank.findById(req.params.id);
+    if (image && image.url && image.url.includes('.amazonaws.com/')) {
+      const key = image.url.split('.amazonaws.com/')[1];
+      if (key) {
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key
+        });
+        await s3.send(deleteCommand).catch(err => console.error("S3 Delete Error:", err));
+      }
+    }
     await ImageBank.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err) {
