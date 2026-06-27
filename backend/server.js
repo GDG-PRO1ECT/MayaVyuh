@@ -102,20 +102,22 @@ app.post('/api/admin/upload-image', upload.array('images'), async (req, res) => 
   }
 });
 
-app.post('/api/upload', upload.single('image'), async (req, res) => {
+app.post('/api/player/upload-submission', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      return res.status(400).json({ success: false, error: "No file uploaded" });
     }
 
     const { teamId, round } = req.body;
+    if (!teamId || !round) {
+      return res.status(400).json({ success: false, error: "teamId and round are required" });
+    }
+
     const fileContent = req.file.buffer;
     const extension = req.file.originalname.split('.').pop().replace(/[^a-zA-Z0-9]/g, '');
     
-    // Dynamically organize the S3 bucket if we have team and round info, else fallback to temp
-    const key = (teamId && round) 
-      ? `submissions/${teamId}/${round}/${uuidv4()}.${extension}` 
-      : `submissions/temp/${uuidv4()}.${extension}`;
+    // Always perfectly organize by team and round
+    const key = `submissions/${teamId}/${round}/${uuidv4()}.${extension}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -128,11 +130,19 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 
     const fullUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 
-    res.json({ url: fullUrl });
+    const newSubmission = new Submission({
+      team: teamId,
+      round: round,
+      finalImageUrl: fullUrl,
+    });
+    
+    await newSubmission.save();
+
+    res.json({ success: true, url: fullUrl });
 
   } catch (err) {
     console.error("Player S3 Upload Error:", err);
-    res.status(500).json({ error: "Failed to upload image to S3" });
+    res.status(500).json({ success: false, error: "Failed to upload image to S3: " + err.message });
   }
 });
 
@@ -213,7 +223,8 @@ app.delete('/api/admin/images/:id', async (req, res) => {
 app.post('/api/similarity', async (req, res) => {
   try {
     const { original_url, submitted_url } = req.body;
-    const response = await fetch('http://localhost:8000/api/similarity', {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
+    const response = await fetch(`${aiServiceUrl}/api/similarity`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ original_url, submitted_url })

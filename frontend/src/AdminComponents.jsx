@@ -10,6 +10,7 @@ import bg4 from "./assets/bg-4.jpg";
 import bg5 from "./assets/bg-5.jpg";
 
 export const BG_IMAGES = [bg1, bg2, bg3, bg4, bg5];
+const API = import.meta.env.VITE_API_URL || "https://mayavyuh-backend.onrender.com";
 
 export const GlobalStyles = () => (
   <style>{`
@@ -584,7 +585,7 @@ const ImageVaultSection = () => {
   useEffect(() => { fetchImages(); }, []);
   const fetchImages = async () => {
     try {
-      const res = await fetch("https://mayavyuh.onrender.com/api/admin/images");
+      const res = await fetch(`${API}/api/admin/images`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setImages(data);
@@ -607,7 +608,7 @@ const ImageVaultSection = () => {
     }
     
     try {
-      await fetch("https://mayavyuh.onrender.com/api/admin/upload-image", { method: "POST", body: formData });
+      await fetch(`${API}/api/admin/upload-image`, { method: "POST", body: formData });
       fetchImages();
     } catch (err) { console.error(err); } 
     finally { 
@@ -618,7 +619,7 @@ const ImageVaultSection = () => {
 
   const handleDelete = async (id) => {
     try {
-      await fetch(`https://mayavyuh.onrender.com/api/admin/images/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/api/admin/images/${id}`, { method: 'DELETE' });
       setImages(images.filter(img => img._id !== id));
     } catch(err) { console.error(err); }
   };
@@ -667,7 +668,7 @@ export const AdminDashboard = ({ teams, setTeams, eventState, setEventState }) =
 
   const fetchSession = async () => {
     try {
-      const res = await fetch('https://mayavyuh.onrender.com/api/game/status');
+      const res = await fetch(`${API}/api/game/status`);
       const data = await res.json();
       if (data.session) setSession(data.session);
     } catch (err) { console.error(err); }
@@ -698,7 +699,7 @@ export const AdminDashboard = ({ teams, setTeams, eventState, setEventState }) =
     setLoading(true);
     try {
       const duration = round ? durations[round] : undefined;
-      await fetch('https://mayavyuh.onrender.com/api/game/start', {
+      await fetch(`${API}/api/game/start`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, round, duration })
       });

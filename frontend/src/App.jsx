@@ -4,6 +4,7 @@ import { Shield, User, Users, Crosshair } from "lucide-react";
 import { useSyncState, broadcastEvent, useEventListener } from "./useSync.js";
 import { AdminDashboard, SceneWrapper, GlobalStyles, BG_IMAGES } from "./AdminComponents.jsx";
 import gdgLogo from "./assets/gdg-logo.png";
+const API = import.meta.env.VITE_API_URL || "https://mayavyuh-backend.onrender.com";
 const INIT_TEAMS = [];
 const INIT_EVENT = { started: false, phase: "lobby" };
 
@@ -163,12 +164,15 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, roundLabel, storag
     if (teamId) formData.append("teamId", teamId);
     if (storageKey) formData.append("round", storageKey.replace('r', ''));
     try {
-      const uploadRes = await fetch("https://mayavyuh.onrender.com/api/upload", { method: "POST", body: formData });
-      const { url } = await uploadRes.json();
-      setUploadedImgUrl("https://mayavyuh.onrender.com" + url);
+      const uploadRes = await fetch(`${API}/api/player/upload-submission`, { method: "POST", body: formData });
+      const data = await uploadRes.json();
+      if (!data.success) {
+        throw new Error(data.error || data.message || "Upload failed");
+      }
+      setUploadedImgUrl(data.url);
     } catch (err) {
       console.error(err);
-      alert("Failed to upload image. Please try again.");
+      alert(err.message || "Failed to upload image. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -181,7 +185,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, roundLabel, storag
     }
     setVerifying(true);
     try {
-      const res = await fetch("https://mayavyuh.onrender.com/api/verify-gemini", {
+      const res = await fetch(`${API}/api/verify-gemini`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ link: geminiLink })
       });
@@ -417,7 +421,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
     if (!myTeam) return;
     const fetchSession = async () => {
       try {
-        const res = await fetch('https://mayavyuh.onrender.com/api/game/status');
+        const res = await fetch(`${API}/api/game/status`);
         const data = await res.json();
         if (data.session) setSession(data.session);
       } catch (err) {}
@@ -434,7 +438,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
       setPhase("lobby");
     }
     else if (s === 'round1_active' && phase === 'lobby') {
-      fetch("https://mayavyuh.onrender.com/api/target-image")
+      fetch(`${API}/api/target-image`)
         .then(r=>r.json())
         .then(d=>{ setTargetImage(d.url); setPhase("r1"); })
         .catch(e=>setPhase("r1"));
@@ -526,7 +530,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
     setFinalImg(img); 
     setPhase("judgment"); 
     try {
-      const res = await fetch("https://mayavyuh.onrender.com/api/similarity", {
+      const res = await fetch(`${API}/api/similarity`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ original_url: targetImage, submitted_url: img })
       });
