@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Network, Database, MonitorPlay, BarChart3, Zap, Skull, Power, Play, Pause, Square, AlertTriangle, ShieldAlert, Cpu, Clock, Activity, RefreshCw } from "lucide-react";
 import { useSyncState, broadcastEvent } from "./useSync.js";
-import imageCompression from 'browser-image-compression';
 import gdgLogo from "./assets/gdg-logo.png";
 import bg1 from "./assets/bg-1.jpg";
 import bg2 from "./assets/bg-2.jpg";
@@ -597,39 +596,16 @@ const ImageVaultSection = () => {
   };
 
   const handleUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+    const file = e.target.files[0];
+    if (!file) return;
     setLoading(true);
     const formData = new FormData();
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-
-    for (let i = 0; i < files.length; i++) {
-      let fileToUpload = files[i];
-      if (fileToUpload.size > MAX_SIZE) {
-        try {
-          const options = {
-            maxSizeMB: 4.8,
-            maxWidthOrHeight: 2048,
-            useWebWorker: true
-          };
-          fileToUpload = await imageCompression(fileToUpload, options);
-        } catch (error) {
-          console.error("Compression error:", error);
-          alert(`Failed to compress ${fileToUpload.name}`);
-          continue; // Skip this file if compression fails
-        }
-      }
-      formData.append("images", fileToUpload);
-    }
+    formData.append("image", file);
     try {
       await fetch("https://mayavyuh.onrender.com/api/admin/upload-image", { method: "POST", body: formData });
       fetchImages();
     } catch (err) { console.error(err); } 
-    finally { 
-      setLoading(false);
-      e.target.value = null;
-    }
+    finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
@@ -646,7 +622,7 @@ const ImageVaultSection = () => {
         <div style={{ display: "flex", gap: 16 }}>
           <label className="btn-imperial" style={{ padding: "12px 32px", fontSize: 12, letterSpacing: 2 }}>
             {loading ? "UPLOADING..." : "UPLOAD ARTIFACT"}
-            <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleUpload} disabled={loading} />
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={loading} />
           </label>
         </div>
       </div>
