@@ -2,5 +2,8 @@ flask
 opencv-python
 numpy
 scikit-image
-requests  
- 
+requests
+torch
+torchvision
+Pillow
+scikit-learn
