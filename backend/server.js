@@ -1,7 +1,9 @@
 require('dotenv').config();
 const dns = require('dns');
-// Set DNS servers to Google's public DNS to resolve MongoDB Atlas SRV records reliably
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Set DNS servers to Google's public DNS to resolve MongoDB Atlas SRV records reliably locally
+if (!process.env.RENDER) {
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+}
 
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
@@ -16,6 +18,7 @@ const KeyValue = require('./models/KeyValue');
 const ImageBank = require('./models/ImageBank');
 const Submission = require('./models/Submission');
 const Team = require('./models/Team');
+const GameState = require('./models/GameState');
 
 const app = express();
 
@@ -173,14 +176,51 @@ let currentTargetIndex = 0;
 
 app.get('/api/target-image', async (req, res) => {
   try {
-    const images = await ImageBank.find();
-    if (images.length === 0) {
-      return res.json({ url: 'https://picsum.photos/seed/default/800/800' });
-    }
-    const storedUrl = images[currentTargetIndex % images.length].url;
-    currentTargetIndex = (currentTargetIndex + 1) % images.length;
+    const teamId = req.query.teamId;
+    let team = null;
 
-    res.json({ url: storedUrl });
+    if (teamId) {
+      team = await Team.findById(teamId);
+    }
+    
+    if (!team) {
+      team = await Team.findOne({ status: 'active' }) || await Team.findOne();
+    }
+
+    const session = await GameState.findOne({ key: 'main' });
+    const currentRound = session ? session.currentRound : 1;
+
+    let targetUrl = null;
+
+    if (team) {
+      if (currentRound === 1) {
+        const assignedImage = await ImageBank.findOne({ assignedTeam: team._id });
+        if (assignedImage) targetUrl = assignedImage.url;
+      } else if (currentRound === 2) {
+        const submission = await Submission.findOne({ team: team._id, round: 1 });
+        if (submission && submission.finalImageUrl) targetUrl = submission.finalImageUrl;
+      } else if (currentRound >= 3) {
+        const submission = await Submission.findOne({ team: team._id, round: 2 });
+        if (submission && submission.finalImageUrl) targetUrl = submission.finalImageUrl;
+      }
+      
+      if (!targetUrl) {
+        const assignedImage = await ImageBank.findOne({ assignedTeam: team._id });
+        if (assignedImage) targetUrl = assignedImage.url;
+      }
+    }
+
+    if (!targetUrl) {
+      const images = await ImageBank.find();
+      if (images.length > 0) {
+        targetUrl = images[currentTargetIndex % images.length].url;
+        currentTargetIndex = (currentTargetIndex + 1) % images.length;
+      } else {
+        targetUrl = 'https://picsum.photos/seed/default/800/800';
+      }
+    }
+
+    res.json({ url: targetUrl });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch image", error: err.message });
   }
@@ -284,8 +324,6 @@ app.post('/api/generate', async (req, res) => {
     res.status(500).json({ error: "Image generation failed: " + err.message });
   }
 });
-
-const GameState = require('./models/GameState');
 
 app.get('/api/game/status', async (req, res) => {
   try {

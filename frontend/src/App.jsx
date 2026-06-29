@@ -4,7 +4,7 @@ import { Shield, User, Users, Crosshair } from "lucide-react";
 import { useSyncState, broadcastEvent, useEventListener } from "./useSync.js";
 import { AdminDashboard, SceneWrapper, GlobalStyles, BG_IMAGES } from "./AdminComponents.jsx";
 import gdgLogo from "./assets/gdg-logo.png";
-const API = import.meta.env.VITE_API_URL || "https://mayavyuh-backend.onrender.com";
+const API = import.meta.env.VITE_API_URL || "https://mayavyuh.onrender.com";
 const INIT_TEAMS = [];
 const INIT_EVENT = { started: false, phase: "lobby" };
 
@@ -51,7 +51,7 @@ const RegistrationScreen = ({ onRegister }) => {
           player1: data.team.observer, 
           player2: data.team.creator, 
           status: data.team.status, 
-          round: 0 
+          round: data.team.round
         });
       } else {
         alert(data.error || "Registration failed on server.");
@@ -550,7 +550,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
   if (phase === "lobby") return <LobbyScreen />;
   if (phase === "r1") return <RoundDisplay teamId={myTeam.id} storageKey="r1" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={targetImage} roundLabel="ROUND 1: INITIAL CREATION" onComplete={(img, link) => { setR1Img(img); updateTeamStatus({ round: 1, r1Link: link }); setPhase("interval1"); }} isPaused={isPaused} timeLeft={timeLeft} isRoundEnded={status === 'round1_ended'} />;
   if (phase === "interval1") return <IntervalScreen title="VERBAL TRANSFER" message={`PLAYER 1 (${myTeam.player1}), describe the target image to PLAYER 2 (${myTeam.player2}) verbally. Do not show them the screen!`} timeLeft={timeLeft} />;
-  if (phase === "r2") return <RoundDisplay teamId={myTeam.id} storageKey="r2" playerLabel={`PLAYER 2 (${myTeam.player2})`} targetImage={null} roundLabel="ROUND 2: BLIND RECREATION" onComplete={(img, link) => { setR2Img(img); updateTeamStatus({ round: 2, r2Link: link }); setPhase("wait_for_r3"); }} isPaused={isPaused} timeLeft={timeLeft} isRoundEnded={status === 'round2_ended'} />;
+  if (phase === "r2") return <RoundDisplay teamId={myTeam.id} storageKey="r2" playerLabel={`PLAYER 2 (${myTeam.player2})`} targetImage={r1Img} roundLabel="ROUND 2: BLIND RECREATION" onComplete={(img, link) => { setR2Img(img); updateTeamStatus({ round: 2, r2Link: link }); setPhase("wait_for_r3"); }} isPaused={isPaused} timeLeft={timeLeft} isRoundEnded={status === 'round2_ended'} />;
   if (phase === "wait_for_r3") return <IntervalScreen title="HOLD POSITION" message="AWAITING ADMIN PROTOCOL FOR ROUND 3" timeLeft={timeLeft} />;
   if (phase === "r3") return <RoundDisplay teamId={myTeam.id} storageKey="r3" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={r2Img} roundLabel="ROUND 3: REFINEMENT" onComplete={(img, link) => { setR3Img(img); updateTeamStatus({ r3Link: link }); setPhase("select"); }} isPaused={isPaused} timeLeft={timeLeft} isRoundEnded={status === 'round3_ended'} />;
   if (phase === "select") return <SelectionScreen imgR2={r2Img} imgR3={r3Img} onSelect={async (img) => { 
