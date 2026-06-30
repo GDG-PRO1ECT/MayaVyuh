@@ -50,14 +50,21 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.log("MongoDB Connection Error:", err));
+    .then(() => {
+      console.log('MongoDB Connected');
+      server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    })
+    .catch(err => {
+      console.log("MongoDB Connection Error:", err);
+      // Still start server to allow non-DB routes to work or to show explicit errors
+      server.listen(PORT, () => console.log(`Server running on port ${PORT} (DB Connection Failed)`));
+    });
 } else {
   console.warn('WARNING: MONGO_URI is not set. Database features will not work.');
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 app.post('/api/admin/upload-image', upload.array('images'), async (req, res) => {
