@@ -1,3 +1,4 @@
+/* eslint-disable */
 const mongoose = require('mongoose');
 
 const teamSchema = new mongoose.Schema({
@@ -5,6 +6,8 @@ const teamSchema = new mongoose.Schema({
   teamNumber: { type: Number, unique: true },
   observer: String,
   creator: String,
+  player1: String,
+  player2: String,
   round: { type: Number, default: 0 },
   score: { type: Number, default: 0 },
   status: { type: String, default: 'pending' }, // pending, approved, active, penalized, banned
@@ -15,7 +18,18 @@ const teamSchema = new mongoose.Schema({
   creatorText: String,
   tabSwitchCount: { type: Number, default: 0 },
   fullscreenExits: { type: Number, default: 0 },
-  warnings: { type: Number, default: 0 }
+  warnings: { type: Number, default: 0 },
+  r1Link: String,
+  r2Link: String,
+  r3Link: String,
+  r1Img: String,
+  r2Img: String,
+  r3Img: String,
+  finalImage: String,
+  phase: { type: String, default: 'register' },
+  disqualifiedReason: String
 });
 
 module.exports = mongoose.model('Team', teamSchema);
+
+

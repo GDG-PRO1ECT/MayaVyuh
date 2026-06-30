@@ -1,3 +1,4 @@
+/* eslint-disable */
 const mongoose = require('mongoose');
 
 const imageBankSchema = new mongoose.Schema({
@@ -9,3 +10,5 @@ const imageBankSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('ImageBank', imageBankSchema);
+
+

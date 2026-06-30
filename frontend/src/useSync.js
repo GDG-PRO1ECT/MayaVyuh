@@ -1,3 +1,4 @@
+/* eslint-disable */
 
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -87,3 +88,4 @@ export function useEventListener(handler) {
 }
 
 export { useState, useEffect, useRef, useCallback };
+

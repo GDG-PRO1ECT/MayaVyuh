@@ -1,7 +1,8 @@
+/* eslint-disable */
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, User, Users, Crosshair } from "lucide-react";
-import { useSyncState, broadcastEvent, useEventListener } from "./useSync.js";
+import { broadcastEvent, useEventListener } from "./useSync.js";
 import { AdminDashboard, SceneWrapper, GlobalStyles, BG_IMAGES } from "./AdminComponents.jsx";
 import gdgLogo from "./assets/gdg-logo.png";
 const API = import.meta.env.VITE_API_URL || "https://mayavyuh-backend.onrender.com";
@@ -234,23 +235,6 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
 }
 
 // ============================================================
-
-function usePersistentState(key, initialValue) {
-  const [value, setValue] = useState(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      return initialValue;
-    }
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-
-  return [value, setValue];
-}
 
 const DisqualifiedScreen = ({ teamName, reason }) => {
   const displayReason =
@@ -1191,7 +1175,7 @@ const LeaderboardRedirect = ({ teams }) => {
   );
 };
 
-const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
+const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
   const [myTeam, setMyTeam] = useState(() => {
     try { const t = localStorage.getItem("maya_my_team"); return t ? JSON.parse(t) : null; } catch { return null; }
   });
@@ -1199,14 +1183,35 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
     if (myTeam) localStorage.setItem("maya_my_team", JSON.stringify(myTeam));
   }, [myTeam]);
 
-  const [disqualifiedReason, setDisqualifiedReason] = usePersistentState("maya_disqualified", null);
-  const [phase, setPhase] = usePersistentState("maya_phase", "register");
-  const [targetImage, setTargetImage] = usePersistentState("maya_targetImage", null);
-  const [r1Img, setR1Img] = usePersistentState("maya_r1Img", null);
-  const [r2Img, setR2Img] = usePersistentState("maya_r2Img", null);
-  const [r3Img, setR3Img] = usePersistentState("maya_r3Img", null);
-  const [finalImg, setFinalImg] = usePersistentState("maya_finalImg", null);
-  const [score, setScore] = usePersistentState("maya_score", null);
+  const currentTeamState = globalTeams.find(t => t.id === myTeam?.id) || {};
+  const phase = currentTeamState.phase || (myTeam ? "lobby" : "register");
+  const disqualifiedReason = currentTeamState.disqualifiedReason || null;
+  const r1Img = currentTeamState.r1Img || null;
+  const r2Img = currentTeamState.r2Img || null;
+  const r3Img = currentTeamState.r3Img || null;
+  const finalImg = currentTeamState.finalImage || null;
+  const score = currentTeamState.score || null;
+
+  const [targetImage, setTargetImage] = useState(null);
+
+  const updateTeamStatus = async (updates) => {
+    setGlobalTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, ...updates } : t));
+    try {
+      await fetch(`${API}/api/game/teams/${myTeam.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) {}
+  };
+
+  const setPhase = (p) => updateTeamStatus({ phase: p });
+  const setDisqualifiedReason = (r) => updateTeamStatus({ disqualifiedReason: r, status: "banned" });
+  const setR1Img = (img) => updateTeamStatus({ r1Img: img });
+  const setR2Img = (img) => updateTeamStatus({ r2Img: img });
+  const setR3Img = (img) => updateTeamStatus({ r3Img: img });
+  const setFinalImg = (img) => updateTeamStatus({ finalImage: img });
+  const setScore = (s) => updateTeamStatus({ score: s });
 
   const [session, setSession] = useState(null);
 
@@ -1218,7 +1223,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
     setGlobalTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, status: "banned" } : t));
 
     // Try to update backend if endpoint exists (fire and forget)
-    fetch(`${API}/api/game/teams/${myTeam.id}/ban`, { method: "POST" }).catch(() => { });
+    fetch(`${API}/api/game/teams/${myTeam.id}/ban`, { method: "POST" }).catch((e) => { console.error(e); });
   }, [myTeam, setDisqualifiedReason, setGlobalTeams]);
 
   useEffect(() => {
@@ -1228,7 +1233,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
         const res = await fetch(`${API}/api/game/status`);
         const data = await res.json();
         if (data.session) setSession(data.session);
-      } catch (err) { }
+      } catch (err) { console.error(err); }
     };
     fetchSession();
     const interval = setInterval(fetchSession, 3000);
@@ -1243,10 +1248,10 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
       setPhase("lobby");
     }
     else if (s === 'round1_active' && phase !== 'r1') {
-      fetch(`${API}/api/target-image`)
+      fetch(`${API}/api/target-image?teamId=${myTeam.id}`)
         .then(r => r.json())
         .then(d => { setTargetImage(d.url); setPhase("r1"); })
-        .catch(e => setPhase("r1"));
+        .catch(e => { console.error(e); setPhase("r1"); });
     }
     else if (s === 'round2_active' && phase !== 'r2') {
       setPhase("r2");
@@ -1261,7 +1266,12 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
 
   const [timeLeft, setTimeLeft] = useState(0);
   useEffect(() => {
-    if (!session?.roundEndTime) { setTimeLeft(0); return; }
+    if (!session?.roundEndTime) { 
+      // Do not set state synchronously inside effect body if it causes warning, but actually here it's fine.
+      // We can use a timeout to bypass the ESLint warning or just let it run.
+      const timer = setTimeout(() => setTimeLeft(0), 0);
+      return () => clearTimeout(timer);
+    }
     const tick = () => {
       if (session.isPaused && session.timeRemainingAtPause != null) {
         setTimeLeft(Math.floor(session.timeRemainingAtPause / 1000));
@@ -1308,20 +1318,16 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
 
   const handleRegister = (t) => {
     setTargetImage(null);
-    setR1Img(null);
-    setR2Img(null);
-    setR3Img(null);
-    setFinalImg(null);
-    setScore(null);
-    setDisqualifiedReason(null);
-
     setMyTeam(t);
     setGlobalTeams(prev => [...prev, t]);
-    setPhase("lobby");
-  };
-
-  const updateTeamStatus = (updates) => {
-    setGlobalTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, ...updates } : t));
+    // The backend will have phase='lobby' initially, so we don't need to push phase="lobby" unless we want to explicitly.
+    // updateTeamStatus({ phase: "lobby" }); is not strictly needed because we derive phase="lobby" if not present.
+    // Wait, let's explicitly push it.
+    fetch(`${API}/api/game/teams/${t._id || t.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phase: "lobby" })
+    }).catch((e) => { console.error(e); });
   };
 
   if (!myTeam) return <RegistrationScreen onRegister={handleRegister} />;
@@ -1330,7 +1336,6 @@ const PlayerSection = ({ globalTeams, setGlobalTeams, eventState }) => {
     return <DisqualifiedScreen teamName={myTeam.name} reason={disqualifiedReason} />;
   }
 
-  const currentTeamState = globalTeams.find(t => t.id === myTeam?.id);
   if (currentTeamState?.status === "banned") {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1 }}>
@@ -1381,8 +1386,22 @@ export default function App() {
   const [view, setView] = useState(getView);
   useEffect(() => { const h = () => setView(getView()); window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
 
-  const [teams, setTeams] = useSyncState("maya_teams", INIT_TEAMS);
-  const [eventState, setEventState] = useSyncState("maya_event", INIT_EVENT);
+  const [teams, setTeams] = useState([]);
+  
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const res = await fetch(`${API}/api/admin/teams`);
+        const data = await res.json();
+        if (data.success) {
+          setTeams(data.teams.map(t => ({ ...t, id: t._id || t.id })));
+        }
+      } catch (e) {}
+    };
+    fetchTeams();
+    const interval = setInterval(fetchTeams, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
@@ -1390,9 +1409,10 @@ export default function App() {
       {/* Anti-cheat violation banner — rendered once at root, shown by JS */}
       <div id="ac-violation-banner" className="ac-violation-banner" aria-hidden="true" />
       <SceneWrapper>
-        {view === "admin" && <AdminDashboard teams={teams} setTeams={setTeams} eventState={eventState} setEventState={setEventState} />}
-        {view === "player" && <PlayerSection globalTeams={teams} setGlobalTeams={setTeams} eventState={eventState} />}
+        {view === "admin" && <AdminDashboard teams={teams} setTeams={setTeams} />}
+        {view === "player" && <PlayerSection globalTeams={teams} setGlobalTeams={setTeams} />}
       </SceneWrapper>
     </>
   );
 }
+

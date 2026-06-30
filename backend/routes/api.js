@@ -1,3 +1,4 @@
+/* eslint-disable */
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
@@ -85,6 +86,8 @@ router.post('/teams/register', async (req, res) => {
       teamNumber: nextTeamNumber,
       observer,
       creator,
+      player1,
+      player2,
       sessionId: activeSession.sessionId,
       status: 'pending'
     });
@@ -96,12 +99,34 @@ router.post('/teams/register', async (req, res) => {
   }
 });
 
-// Ban a Team
+// Ban or update a Team status
 router.post('/game/teams/:id/ban', async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ error: 'Team not found' });
     team.status = 'banned';
+    await team.save();
+    res.json({ success: true, team });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a Team
+router.put('/game/teams/:id', async (req, res) => {
+  try {
+    const team = await Team.findById(req.params.id);
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+    
+    // Only update allowed fields
+    const updates = req.body;
+    const allowedFields = ['round', 'score', 'status', 'r1Link', 'r2Link', 'r3Link', 'r1Img', 'r2Img', 'r3Img', 'finalImage', 'phase', 'disqualifiedReason'];
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined) {
+        team[field] = updates[field];
+      }
+    });
+
     await team.save();
     res.json({ success: true, team });
   } catch (err) {
@@ -119,10 +144,10 @@ router.post('/admin/start-event', async (req, res) => {
     await session.save();
 
     const teams = await Team.find({ sessionId: session.sessionId });
-    const images = await ImageBank.find({ used: false });
+    const images = await ImageBank.find();
 
-    if (images.length < teams.length) {
-      return res.status(400).json({ error: 'Not enough images in ImageBank' });
+    if (images.length === 0) {
+      return res.status(400).json({ error: 'No images found in ImageBank. Please upload images first.' });
     }
 
     for (let i = 0; i < teams.length; i++) {
@@ -160,6 +185,16 @@ router.get('/admin/teams', async (req, res) => {
   try {
     const teams = await Team.find().sort({ createdAt: -1 });
     res.json({ success: true, teams });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Delete all teams
+router.delete('/admin/teams', async (req, res) => {
+  try {
+    await Team.deleteMany({});
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

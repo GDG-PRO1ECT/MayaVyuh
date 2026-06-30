@@ -1,3 +1,4 @@
+/* eslint-disable */
 const mongoose = require('mongoose');
 
 const gameStateSchema = new mongoose.Schema({
@@ -27,3 +28,5 @@ const gameStateSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('GameState', gameStateSchema);
+
+

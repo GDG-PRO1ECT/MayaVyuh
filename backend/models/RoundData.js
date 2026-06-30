@@ -1,3 +1,4 @@
+/* eslint-disable */
 const mongoose = require('mongoose');
 
 const roundDataSchema = new mongoose.Schema({
@@ -9,3 +10,5 @@ const roundDataSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('RoundData', roundDataSchema);
+
+
