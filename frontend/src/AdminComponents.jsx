@@ -563,12 +563,13 @@ export const AdminDashboard = ({ teams, setTeams }) => {
     const team = teams.find(t => t.id === id);
     if (!team) return;
     const newStatus = team.status === "banned" ? "active" : "banned";
+    const newReason = newStatus === "banned" ? "manual_ban" : null;
     setTeams(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
     try {
       await fetch(`${API}/api/game/teams/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus, disqualifiedReason: reason })
+        body: JSON.stringify({ status: newStatus, disqualifiedReason: newReason })
       });
     } catch(e) { console.error(e); }
   };
