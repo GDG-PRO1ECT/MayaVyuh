@@ -907,16 +907,69 @@ const LobbyScreen = () => (
   </div>
 );
 
-const IntervalScreen = ({ title, message, timeLeft }) => (
-  <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1, padding: 24, textAlign: "center" }}>
-    <img src={gdgLogo} alt="GDG Logo" style={{ width: 60, marginBottom: 20 }} />
-    <div style={{ fontSize: 64, marginBottom: 24 }}>🔀</div>
-    <div className="title-primary" style={{ fontSize: 40, color: "var(--neon-gold)", textShadow: "0 0 10px var(--neon-gold)" }}>{title}</div>
-    <div style={{ fontFamily: "'Share Tech Mono'", color: "var(--text-main)", fontSize: 20, maxWidth: 600, margin: "24px 0", lineHeight: 1.6 }}>{message}</div>
-    {timeLeft > 0 && <div style={{ fontSize: 48, fontFamily: "'Orbitron'", color: "#D4AF37", marginBottom: 32 }}>{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</div>}
-    <div style={{ fontFamily: "'Cinzel', serif", color: "var(--neon-cyan)", letterSpacing: 4 }}>AWAITING PROTOCOL...</div>
-  </div>
-);
+const IntervalScreen = ({ title, message, timeLeft, isPaused, localDurationKey, localDuration }) => {
+  const [localTimeLeft, setLocalTimeLeft] = useState(() => {
+    if (!localDurationKey) return 0;
+    const startTime = localStorage.getItem(`maya_timer_${localDurationKey}`);
+    if (startTime) {
+       const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
+       return Math.max(0, localDuration - elapsed);
+    }
+    localStorage.setItem(`maya_timer_${localDurationKey}`, Date.now().toString());
+    return localDuration;
+  });
+
+  useEffect(() => {
+    if (!localDurationKey) return;
+    
+    let startTime = localStorage.getItem(`maya_timer_${localDurationKey}`);
+    if (!startTime) {
+      startTime = Date.now().toString();
+      localStorage.setItem(`maya_timer_${localDurationKey}`, startTime);
+      setLocalTimeLeft(localDuration);
+    } else {
+      const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
+      setLocalTimeLeft(Math.max(0, localDuration - elapsed));
+    }
+
+    const interval = setInterval(() => {
+       const st = localStorage.getItem(`maya_timer_${localDurationKey}`);
+       if (st) {
+         const elapsed = Math.floor((Date.now() - parseInt(st)) / 1000);
+         setLocalTimeLeft(Math.max(0, localDuration - elapsed));
+       }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [localDurationKey, localDuration]);
+
+  const displayTime = localDurationKey ? localTimeLeft : timeLeft;
+  const isFinished = localDurationKey ? localTimeLeft <= 0 : (timeLeft <= 0 && !isPaused);
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1, padding: 24, textAlign: "center" }}>
+      <img src={gdgLogo} alt="GDG Logo" style={{ width: 60, marginBottom: 20 }} />
+      <div style={{ fontSize: 64, marginBottom: 24 }}>🔀</div>
+      <div className="title-primary" style={{ fontSize: 40, color: "var(--neon-gold)", textShadow: "0 0 10px var(--neon-gold)" }}>{title}</div>
+      <div style={{ fontFamily: "'Share Tech Mono'", color: "var(--text-main)", fontSize: 20, maxWidth: 600, margin: "24px 0", lineHeight: 1.6 }}>{message}</div>
+      {isPaused && !localDurationKey ? (
+        <div style={{ fontSize: 48, fontFamily: "'Orbitron'", color: "#ff2a2a", marginBottom: 32, textShadow: "0 0 10px rgba(255,42,42,0.5)" }}>
+          TEMPORAL HALT
+        </div>
+      ) : displayTime > 0 ? (
+        <div style={{ fontSize: 48, fontFamily: "'Orbitron'", color: "#D4AF37", marginBottom: 32 }}>
+          {Math.floor(displayTime / 60)}:{String(displayTime % 60).padStart(2, '0')}
+        </div>
+      ) : (
+        <div style={{ fontSize: 48, fontFamily: "'Orbitron'", color: "#ff2a2a", marginBottom: 32, textShadow: "0 0 10px rgba(255,42,42,0.5)" }}>
+          00:00
+        </div>
+      )}
+      <div style={{ fontFamily: "'Cinzel', serif", color: "var(--neon-cyan)", letterSpacing: 4 }}>
+        {isFinished ? (localDurationKey ? "TIME UP . WAITING FOR ADMIN INSTRUCTIONS" : "WAITING FOR ADMIN INSTRUCTIONS . HALTED !!") : "AWAITING PROTOCOL..."}
+      </div>
+    </div>
+  );
+};
 
 const RoundDisplay = ({ playerLabel, targetImage, onComplete, roundLabel, storageKey, isPaused, timeLeft, isRoundEnded, teamId, registerGeminiWindow }) => {
   const [uploading, setUploading] = useState(false);
@@ -1185,7 +1238,10 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
     if (myTeam) localStorage.setItem("maya_my_team", JSON.stringify(myTeam));
   }, [myTeam]);
 
-  const currentTeamState = globalTeams.find(t => t.id === myTeam?.id) || {};
+  const [localTeamState, setLocalTeamState] = useState({});
+  const serverTeamState = globalTeams.find(t => t.id === myTeam?.id) || {};
+  const currentTeamState = { ...serverTeamState, ...localTeamState };
+
   const phase = currentTeamState.phase || (myTeam ? "lobby" : "register");
   const disqualifiedReason = currentTeamState.disqualifiedReason || null;
   const r1Img = currentTeamState.r1Img || null;
@@ -1197,6 +1253,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
   const [targetImage, setTargetImage] = useState(null);
 
   const updateTeamStatus = async (updates) => {
+    setLocalTeamState(prev => ({ ...prev, ...updates }));
     setGlobalTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, ...updates } : t));
     try {
       await fetch(`${API}/api/game/teams/${myTeam.id}`, {
@@ -1242,35 +1299,43 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
     return () => clearInterval(interval);
   }, [myTeam]);
 
+  const [timeLeft, setTimeLeft] = useState(0);
+
   useEffect(() => {
     if (!session || !myTeam) return;
-    const s = session.status;
+    const s = session?.status || 'waiting';
 
     if (s === 'waiting' && phase !== 'lobby' && phase !== 'register') {
       setPhase("lobby");
     }
-    else if (s === 'round1_active' && phase !== 'r1') {
+    else if (s === 'round1_active' && phase !== 'r1' && phase !== 'wait_for_r1_end' && phase !== 'interval1') {
       fetch(`${API}/api/target-image?teamId=${myTeam.id}`)
         .then(r => r.json())
         .then(d => { setTargetImage(d.url); setPhase("r1"); })
         .catch(e => { console.error(e); setPhase("r1"); });
     }
-    else if (s === 'round2_active' && phase !== 'r2') {
+    else if (phase === 'wait_for_r1_end' && timeLeft <= 0 && !s.endsWith('_ended')) {
+      setPhase("interval1");
+    }
+    else if (s === 'round2_active' && phase !== 'r2' && phase !== 'wait_for_r2_end' && phase !== 'wait_for_r3') {
       setPhase("r2");
     }
-    else if (s === 'round3_active' && phase !== 'r3') {
+    else if (phase === 'wait_for_r2_end' && timeLeft <= 0 && !s.endsWith('_ended')) {
+      setPhase("wait_for_r3");
+    }
+    else if (s === 'round3_active' && phase !== 'r3' && phase !== 'wait_for_r3_end' && phase !== 'select' && phase !== 'judgment' && phase !== 'leaderboard') {
       setPhase("r3");
+    }
+    else if (phase === 'wait_for_r3_end' && timeLeft <= 0 && !s.endsWith('_ended')) {
+      setPhase("select");
     }
     else if (s === 'finished' && phase !== 'leaderboard') {
       setPhase("leaderboard");
     }
-  }, [session?.status, myTeam, phase, setPhase, setTargetImage]);
+  }, [session?.status, myTeam, phase, setPhase, setTargetImage, timeLeft]);
 
-  const [timeLeft, setTimeLeft] = useState(0);
   useEffect(() => {
     if (!session?.roundEndTime) { 
-      // Do not set state synchronously inside effect body if it causes warning, but actually here it's fine.
-      // We can use a timeout to bypass the ESLint warning or just let it run.
       const timer = setTimeout(() => setTimeLeft(0), 0);
       return () => clearTimeout(timer);
     }
@@ -1284,7 +1349,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [session?.roundEndTime, session?.isPaused, session?.timeRemainingAtPause]);
+  }, [session?.roundEndTime, session?.isPaused, session?.timeRemainingAtPause, session?.status]);
 
   const isPaused = session?.isPaused || false;
   const forceCloseWindow = isPaused || (timeLeft <= 0 && session?.status?.includes('_active'));
@@ -1351,16 +1416,20 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
   }
 
   const status = session?.status || 'waiting';
+  const displayTimeLeft = status.endsWith('_ended') ? 0 : timeLeft;
 
   // Common props passed to all RoundDisplay instances
-  const roundProps = { teamId: myTeam.id, isPaused, timeLeft, registerGeminiWindow };
+  const roundProps = { teamId: myTeam.id, isPaused, timeLeft: displayTimeLeft, registerGeminiWindow };
 
   if (phase === "lobby") return <LobbyScreen />;
-  if (phase === "r1") return <RoundDisplay {...roundProps} storageKey="r1" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={targetImage} roundLabel="ROUND 1: INITIAL CREATION" onComplete={(img, link) => { setR1Img(img); updateTeamStatus({ round: 1, r1Link: link }); setPhase("interval1"); }} isRoundEnded={status === 'round1_ended'} />;
-  if (phase === "interval1") return <IntervalScreen title="VERBAL TRANSFER" message={`PLAYER 1 (${myTeam.player1}), describe the target image to PLAYER 2 (${myTeam.player2}) verbally. Do not show them the screen!`} timeLeft={timeLeft} />;
-  if (phase === "r2") return <RoundDisplay {...roundProps} storageKey="r2" playerLabel={`PLAYER 2 (${myTeam.player2})`} targetImage={r1Img} roundLabel="ROUND 2: BLIND RECREATION" onComplete={(img, link) => { setR2Img(img); updateTeamStatus({ round: 2, r2Link: link }); setPhase("wait_for_r3"); }} isRoundEnded={status === 'round2_ended'} />;
-  if (phase === "wait_for_r3") return <IntervalScreen title="HOLD POSITION" message="AWAITING ADMIN PROTOCOL FOR ROUND 3" timeLeft={timeLeft} />;
-  if (phase === "r3") return <RoundDisplay {...roundProps} storageKey="r3" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={r2Img} roundLabel="ROUND 3: REFINEMENT" onComplete={(img, link) => { setR3Img(img); updateTeamStatus({ r3Link: link }); setPhase("select"); }} isRoundEnded={status === 'round3_ended'} />;
+  if (phase === "r1") return <RoundDisplay {...roundProps} storageKey="r1" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={targetImage} roundLabel="ROUND 1: INITIAL CREATION" onComplete={(img, link) => { setR1Img(img); updateTeamStatus({ round: 1, r1Link: link }); setPhase("wait_for_r1_end"); }} isRoundEnded={status === 'round1_ended'} />;
+  if (phase === "wait_for_r1_end") return <IntervalScreen key="wait1" title="HOLD POSITION" message="AWAITING ADMIN PROTOCOL FOR ROUND 1 COMPLETION" timeLeft={displayTimeLeft} isPaused={isPaused} />;
+  if (phase === "interval1") return <IntervalScreen key="int1" title="VERBAL TRANSFER" message={`PLAYER 1 (${myTeam.player1}), describe the target image to PLAYER 2 (${myTeam.player2}) verbally. Do not show them the screen!`} localDurationKey={`verbal_transfer_${session?.roundEndTime || '1'}`} localDuration={5} />;
+  if (phase === "r2") return <RoundDisplay {...roundProps} storageKey="r2" playerLabel={`PLAYER 2 (${myTeam.player2})`} targetImage={r1Img} roundLabel="ROUND 2: BLIND RECREATION" onComplete={(img, link) => { setR2Img(img); updateTeamStatus({ round: 2, r2Link: link }); setPhase("wait_for_r2_end"); }} isRoundEnded={status === 'round2_ended'} />;
+  if (phase === "wait_for_r2_end") return <IntervalScreen key="wait2" title="HOLD POSITION" message="AWAITING ADMIN PROTOCOL FOR ROUND 2 COMPLETION" timeLeft={displayTimeLeft} isPaused={isPaused} />;
+  if (phase === "wait_for_r3") return <IntervalScreen key="wait3" title="PLAYER SWITCHING" message={`PLAYER 2 (${myTeam.player2}), step back. PLAYER 1 (${myTeam.player1}), prepare for ROUND 3.`} localDurationKey={`player_switching_${session?.roundEndTime || '2'}`} localDuration={5} />;
+  if (phase === "r3") return <RoundDisplay {...roundProps} storageKey="r3" playerLabel={`PLAYER 1 (${myTeam.player1})`} targetImage={r2Img} roundLabel="ROUND 3: REFINEMENT" onComplete={(img, link) => { setR3Img(img); updateTeamStatus({ r3Link: link }); setPhase("wait_for_r3_end"); }} isRoundEnded={status === 'round3_ended'} />;
+  if (phase === "wait_for_r3_end") return <IntervalScreen key="wait_r3_end" title="HOLD POSITION" message="AWAITING ADMIN PROTOCOL FOR ROUND 3 COMPLETION" timeLeft={displayTimeLeft} isPaused={isPaused} />;
   if (phase === "select") return <SelectionScreen imgR2={r2Img} imgR3={r3Img} onSelect={async (img) => {
     setFinalImg(img);
     setPhase("judgment");
@@ -1398,7 +1467,18 @@ export default function App() {
         const res = await fetch(`${API}/api/admin/teams`);
         const data = await res.json();
         if (data.success) {
-          setTeams(data.teams.map(t => ({ ...t, id: t._id || t.id })));
+          const parsedTeams = data.teams.map(t => ({ ...t, id: t._id || t.id }));
+          setTeams(parsedTeams);
+          try {
+            const localTeamStr = localStorage.getItem("maya_my_team");
+            if (localTeamStr && window.location.hash !== "#admin") {
+              const localTeam = JSON.parse(localTeamStr);
+              if (!parsedTeams.find(t => t.id === localTeam.id)) {
+                localStorage.removeItem("maya_my_team");
+                window.location.reload();
+              }
+            }
+          } catch (err) {}
         }
       } catch (e) {}
     };
