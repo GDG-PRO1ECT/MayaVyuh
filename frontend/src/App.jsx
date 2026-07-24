@@ -6,6 +6,7 @@ import { broadcastEvent, useEventListener } from "./useSync.js";
 import { ScoreDigits } from "./ScoreReveal.jsx";
 import { AdminDashboard, SceneWrapper, GlobalStyles, BG_IMAGES } from "./AdminComponents.jsx";
 import gdgLogo from "./assets/gdg-logo.png";
+import { compressImage } from "./utils/imageCompression.js";
 const API = import.meta.env.VITE_API_URL || "https://mayavyuh-backend.onrender.com";
 const INIT_TEAMS = [];
 const INIT_EVENT = { started: false, phase: "lobby" };
@@ -1325,11 +1326,12 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append("image", file);
-    if (teamId) formData.append("teamId", teamId);
-    if (storageKey) formData.append("round", storageKey.replace('r', ''));
     try {
+      const compressedFile = await compressImage(file);
+      const formData = new FormData();
+      formData.append("image", compressedFile, file.name);
+      if (teamId) formData.append("teamId", teamId);
+      if (storageKey) formData.append("round", storageKey.replace('r', ''));
       const uploadRes = await fetch(`${API}/api/player/upload-submission`, { method: "POST", body: formData });
       const data = await uploadRes.json();
       if (!data.success) throw new Error(data.error || data.message || "Upload failed");
