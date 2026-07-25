@@ -1,7 +1,7 @@
 /* eslint-disable */
 require('dotenv').config();
 
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const express = require('express');
 const http = require('http');
@@ -307,7 +307,7 @@ app.get('/api/target-image', async (req, res) => {
 
 app.get('/api/admin/images', async (req, res) => {
   try {
-    const images = await ImageBank.find();
+    const images = await ImageBank.find().sort({ teamNumber: 1 });
     res.json(images);
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch images", error: err.message });
@@ -339,6 +339,45 @@ app.delete('/api/admin/images/:id', async (req, res) => {
       }
     }
     await ImageBank.findByIdAndDelete(req.params.id);
+
+    // Renumber remaining images sequentially (1, 2, 3, ...)
+    const remaining = await ImageBank.find().sort({ teamNumber: 1 });
+    const bucket = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_S3_Bucket_name;
+    for (let i = 0; i < remaining.length; i++) {
+      const newNumber = i + 1;
+      if (remaining[i].teamNumber !== newNumber) {
+        // Derive the file extension from the current filename
+        const oldFilename = remaining[i].filename || '';
+        const ext = oldFilename.includes('.') ? oldFilename.split('.').pop() : 'png';
+        const newFilename = `team_${newNumber}.${ext}`;
+        const oldKey = remaining[i].url.includes('.amazonaws.com/')
+          ? remaining[i].url.split('.amazonaws.com/')[1]
+          : null;
+        const newKey = `reference/${newFilename}`;
+
+        // Rename in S3: copy to new key, then delete old key
+        if (oldKey && oldKey !== newKey) {
+          try {
+            await s3.send(new CopyObjectCommand({
+              Bucket: bucket,
+              CopySource: `${bucket}/${oldKey}`,
+              Key: newKey
+            }));
+            await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: oldKey }));
+          } catch (s3Err) {
+            console.error(`S3 rename error for team ${remaining[i].teamNumber} -> ${newNumber}:`, s3Err.message);
+          }
+        }
+
+        // Update MongoDB record
+        const newUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${newKey}`;
+        remaining[i].teamNumber = newNumber;
+        remaining[i].filename = newFilename;
+        remaining[i].url = newUrl;
+        await remaining[i].save();
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

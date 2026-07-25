@@ -458,7 +458,8 @@ const ImageVaultSection = () => {
   const handleDelete = async (id) => {
     try {
       await fetch(`${API}/api/admin/images/${id}`, { method: 'DELETE' });
-      setImages(images.filter(img => img._id !== id));
+      // Re-fetch to get renumbered team numbers from backend
+      await fetchImages();
     } catch (err) { console.error(err); }
   };
 
