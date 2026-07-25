@@ -1,3 +1,9 @@
+import os
+# Force CPU mode and suppress ONNX Runtime / PyTorch GPU discovery warnings on Render
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["ORT_LOGGING_LEVEL"] = "3"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 import torch
 from PIL import Image
 from torchvision import transforms
