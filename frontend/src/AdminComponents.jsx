@@ -341,6 +341,7 @@ const AdminLogin = ({ onLogin }) => {
 
         <div style={{ position: "relative", marginBottom: 32 }}>
           <input
+            title="Enter the admin override code to login."
             type="password"
             placeholder="ENTER OVERRIDE CODE"
             value={pwd}
@@ -1226,7 +1227,7 @@ export const AdminDashboard = ({ teams, setTeams, eventState, setEventState }) =
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(0,0,0,0.6)", padding: "12px 16px", border: "1px solid rgba(212, 175, 55, 0.2)" }}>
-                          <input type="number" value={durations[r]} onChange={e => setDurations({ ...durations, [r]: parseInt(e.target.value) || 0 })} disabled={isActive} style={{ background: "transparent", border: "none", color: "#D4AF37", width: 60, textAlign: "center", fontSize: 16, outline: "none" }} />
+                          <input title="Set the time duration for this round in seconds." type="number" value={durations[r]} onChange={e => setDurations({ ...durations, [r]: parseInt(e.target.value) || 0 })} disabled={isActive} style={{ background: "transparent", border: "none", color: "#D4AF37", width: 60, textAlign: "center", fontSize: 16, outline: "none" }} />
                           <span style={{ fontSize: 10, color: "rgba(212,175,55,0.6)", letterSpacing: 2 }}>SEC</span>
                         </div>
                         <div style={{ display: "flex", gap: 16 }}>

@@ -298,7 +298,7 @@ const DisqualifiedScreen = ({ teamName, reason }) => {
   );
 };
 
-const ComplexInput = ({ icon: Icon, placeholder, value, setter, fieldId, activeInput, setActiveInput }) => {
+const ComplexInput = ({ icon: Icon, placeholder, value, setter, fieldId, activeInput, setActiveInput, tooltip }) => {
   const isFocused = activeInput === fieldId;
   const isFilled = value.length > 0;
 
@@ -398,6 +398,7 @@ const ComplexInput = ({ icon: Icon, placeholder, value, setter, fieldId, activeI
           </div>
 
           <input
+            title={tooltip || placeholder}
             value={value}
             onChange={e => setter(e.target.value.toUpperCase())}
             onFocus={() => setActiveInput(fieldId)}
@@ -816,15 +817,15 @@ const RegistrationScreen = ({ onRegister }) => {
             <form onSubmit={handleRegister} style={{ position: "relative", zIndex: 5, width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
 
               <motion.div initial={{ opacity: 0, x: -50, filter: "blur(10px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ duration: 0.8, ease: "easeOut", delay: 1.0 }} style={{ width: "100%" }}>
-                <ComplexInput icon={Shield} placeholder="HOUSE DESIGNATION" value={teamName} setter={setTeamName} fieldId="team" activeInput={activeInput} setActiveInput={setActiveInput} />
+                <ComplexInput icon={Shield} placeholder="HOUSE DESIGNATION" tooltip="Enter the team name" value={teamName} setter={setTeamName} fieldId="team" activeInput={activeInput} setActiveInput={setActiveInput} />
               </motion.div>
 
               <motion.div initial={{ opacity: 0, x: 50, filter: "blur(10px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ duration: 0.8, ease: "easeOut", delay: 1.2 }} style={{ width: "100%" }}>
-                <ComplexInput icon={User} placeholder="OPERATIVE I IDENTIFIER" value={p1} setter={setP1} fieldId="p1" activeInput={activeInput} setActiveInput={setActiveInput} />
+                <ComplexInput icon={User} placeholder="OPERATIVE I IDENTIFIER" tooltip="Enter the name of Player 1" value={p1} setter={setP1} fieldId="p1" activeInput={activeInput} setActiveInput={setActiveInput} />
               </motion.div>
 
               <motion.div initial={{ opacity: 0, x: -50, filter: "blur(10px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ duration: 0.8, ease: "easeOut", delay: 1.4 }} style={{ width: "100%" }}>
-                <ComplexInput icon={Users} placeholder="OPERATIVE II IDENTIFIER" value={p2} setter={setP2} fieldId="p2" activeInput={activeInput} setActiveInput={setActiveInput} />
+                <ComplexInput icon={Users} placeholder="OPERATIVE II IDENTIFIER" tooltip="Enter the name of Player 2" value={p2} setter={setP2} fieldId="p2" activeInput={activeInput} setActiveInput={setActiveInput} />
               </motion.div>
 
               <motion.div
@@ -832,6 +833,7 @@ const RegistrationScreen = ({ onRegister }) => {
                 style={{ width: "95%", marginTop: "12px" }}
               >
                 <button
+                  title="Submit your team's registration details."
                   type="submit"
                   disabled={registering}
                   style={{
@@ -1558,9 +1560,9 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
             <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
               <div style={{ color: "var(--neon-cyan)", fontSize: 10, letterSpacing: 2 }}>SAVE GEMINI LINK (FOR REFRESH)</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <input type="url" placeholder="Paste Gemini URL..." value={savedSessionLink || tempSessionLink} onChange={e => setTempSessionLink(e.target.value)} readOnly={!!savedSessionLink} style={{ padding: "6px 10px", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-cyan)", color: "#fff", fontFamily: "'Share Tech Mono'", outline: "none", borderRadius: 4, width: 220, fontSize: 12, opacity: savedSessionLink ? 0.6 : 1 }} />
+                <input title="Paste your Gemini AI chat link here." type="url" placeholder="Paste Gemini URL..." value={savedSessionLink || tempSessionLink} onChange={e => setTempSessionLink(e.target.value)} readOnly={!!savedSessionLink} style={{ padding: "6px 10px", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-cyan)", color: "#fff", fontFamily: "'Share Tech Mono'", outline: "none", borderRadius: 4, width: 220, fontSize: 12, opacity: savedSessionLink ? 0.6 : 1 }} />
                 {!savedSessionLink && (
-                  <button className="btn-imperial" style={{ padding: "6px 12px", fontSize: 12, borderColor: "var(--neon-green)", color: "var(--neon-green)" }} onClick={() => { if (tempSessionLink.includes('gemini.google.com')) { localStorage.setItem(`gemini_session_${teamId}_${storageKey}`, tempSessionLink); setSavedSessionLink(tempSessionLink); } else { alert("Please enter a valid Gemini link."); } }}>SAVE</button>
+                  <button title="Save this Gemini chat link for later." className="btn-imperial" style={{ padding: "6px 12px", fontSize: 12, borderColor: "var(--neon-green)", color: "var(--neon-green)" }} onClick={() => { if (tempSessionLink.includes('gemini.google.com')) { localStorage.setItem(`gemini_session_${teamId}_${storageKey}`, tempSessionLink); setSavedSessionLink(tempSessionLink); } else { alert("Please enter a valid Gemini link."); } }}>SAVE</button>
                 )}
               </div>
             </div>
@@ -1575,7 +1577,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
           )}
 
           {!uploadedImgUrl ? (
-            <motion.label layout style={{ width: "100%", cursor: uploading ? "not-allowed" : "pointer" }}>
+            <motion.label title="Click here to select and upload your final image artifact." layout style={{ width: "100%", cursor: uploading ? "not-allowed" : "pointer" }}>
               <div style={{ width: "100%", padding: "16px", border: "1px solid rgba(0, 255, 255, 0.3)", borderRadius: 8, background: "rgba(0,0,0,0.6)", textAlign: "center", transition: "all 0.3s", boxShadow: "inset 0 0 10px rgba(0, 255, 255, 0.05)" }}>
                 <span style={{ color: uploading ? "var(--text-dim)" : "var(--neon-cyan)", fontSize: 16, letterSpacing: 2, fontFamily: "'Orbitron'", fontWeight: "bold" }}>{uploading ? "UPLOADING ARTIFACT..." : "UPLOAD GENERATED IMAGE"}</span>
                 <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading} />
@@ -1589,15 +1591,15 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
               </div>
               <div style={{ width: "100%", marginBottom: 16 }}>
                 <div style={{ color: "var(--neon-cyan)", fontSize: 12, marginBottom: 8, letterSpacing: 2 }}>{savedSessionLink ? "GEMINI CHAT LINK (SAVED):" : "GEMINI CHAT LINK (MANDATORY):"}</div>
-                <input type="url" placeholder="https://gemini.google.com/app/..." value={geminiLink} onChange={e => setGeminiLink(e.target.value)} style={{ width: "100%", padding: "16px", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-cyan)", color: "#fff", fontFamily: "'Share Tech Mono'", outline: "none", borderRadius: 4 }} />
+                <input title="Paste your final Gemini AI chat link here." type="url" placeholder="https://gemini.google.com/app/..." value={geminiLink} onChange={e => setGeminiLink(e.target.value)} style={{ width: "100%", padding: "16px", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-cyan)", color: "#fff", fontFamily: "'Share Tech Mono'", outline: "none", borderRadius: 4 }} />
               </div>
               <div style={{ display: "flex", gap: 16 }}>
-                <button className="btn-imperial-danger" style={{ flex: 1, padding: 16 }} onClick={() => setUploadedImgUrl(null)}>RETRY</button>
+                <button title="Clear the uploaded image to try again." className="btn-imperial-danger" style={{ flex: 1, padding: 16 }} onClick={() => setUploadedImgUrl(null)}>RETRY</button>
                 {/*
                   // Original feature: submission not allowed till timer ends
                   <button className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: (!effectivelyEnded ? "var(--text-dim)" : "var(--neon-green)"), color: (!effectivelyEnded ? "var(--text-dim)" : "var(--neon-green)"), opacity: (verifying || !effectivelyEnded) ? 0.5 : 1, cursor: !effectivelyEnded ? "not-allowed" : "pointer" }} onClick={effectivelyEnded ? handleSubmit : undefined} disabled={verifying || !effectivelyEnded}>{verifying ? "VERIFYING..." : (!effectivelyEnded ? "AWAITING ROUND END..." : "SUBMIT TO DATACRON ➔")}</button>
                 */}
-                <button className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: "var(--neon-green)", color: "var(--neon-green)", opacity: verifying ? 0.5 : 1, cursor: "pointer" }} onClick={handleSubmit} disabled={verifying}>{verifying ? "VERIFYING..." : "SUBMIT TO DATACRON ➔"}</button>
+                <button title="Submit your image and link to the Datacron for scoring." className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: "var(--neon-green)", color: "var(--neon-green)", opacity: verifying ? 0.5 : 1, cursor: "pointer" }} onClick={handleSubmit} disabled={verifying}>{verifying ? "VERIFYING..." : "SUBMIT TO DATACRON ➔"}</button>
               </div>
             </motion.div>
           )}
@@ -1642,7 +1644,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
             <div style={{ fontSize: 48, marginBottom: 24 }}>✨</div>
             <div style={{ fontFamily: "'Orbitron'", fontSize: 24, color: "var(--neon-gold)", marginBottom: 16 }}>SPELL GENERATION</div>
             <div style={{ color: "var(--text-dim)", marginBottom: 32, lineHeight: 1.6 }}>Launch Gemini in Split-Screen Mode to generate your spell.<br />Your target image will remain visible here.</div>
-            <button className="btn-imperial" onClick={launchGemini} style={{ width: "100%", padding: 20, fontSize: 16, display: "flex", justifyContent: "center", gap: 12 }}>{savedSessionLink ? "RE-CONTINUE GEMINI SESSION ➔" : "LAUNCH GEMINI (SPLIT SCREEN) ➔"}</button>
+            <button title="Open Gemini AI in a split screen to write your prompts." className="btn-imperial" onClick={launchGemini} style={{ width: "100%", padding: 20, fontSize: 16, display: "flex", justifyContent: "center", gap: 12 }}>{savedSessionLink ? "RE-CONTINUE GEMINI SESSION ➔" : "LAUNCH GEMINI (SPLIT SCREEN) ➔"}</button>
           </div>
         )}
       </motion.div>
@@ -1659,12 +1661,12 @@ const SelectionScreen = ({ imgR2, imgR3, onSelect }) => (
       <div className="glass-panel" style={{ textAlign: "center" }}>
         <div className="title-secondary">ROUND 2 OUTPUT</div>
         <img src={imgR2} alt="R2" style={{ width: "100%", aspectRatio: "1/1", objectFit: "contain", marginBottom: 24, borderRadius: 6 }} />
-        <button className="btn" onClick={() => onSelect(imgR2)}>SELECT THIS</button>
+        <button title="Choose Round 2 image as the base." className="btn" onClick={() => onSelect(imgR2)}>SELECT THIS</button>
       </div>
       <div className="glass-panel" style={{ textAlign: "center" }}>
         <div className="title-secondary">ROUND 3 OUTPUT</div>
         <img src={imgR3} alt="R3" style={{ width: "100%", aspectRatio: "1/1", objectFit: "contain", marginBottom: 24, borderRadius: 6 }} />
-        <button className="btn" onClick={() => onSelect(imgR3)}>SELECT THIS</button>
+        <button title="Choose Round 3 image as the base." className="btn" onClick={() => onSelect(imgR3)}>SELECT THIS</button>
       </div>
     </div>
   </div>
@@ -1744,6 +1746,7 @@ const JudgmentScreen = ({ originalImg, finalImg, score, scoreStatus, onRedirect 
 
       {isError && (
         <button
+          title="Go back to the waiting lobby."
           onClick={onRedirect}
           className="btn-imperial"
           style={{ marginTop: 40, padding: "16px 40px", letterSpacing: 4, fontSize: 14, cursor: "pointer" }}
