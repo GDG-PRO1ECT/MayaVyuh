@@ -20,9 +20,11 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
   const violationCountRef = useRef(0);
   const geminiWindowRef = useRef(null);
   const bannerTimerRef = useRef(null);
+  const ignoreBlurRef = useRef(false);
 
   useEffect(() => {
     if (isPaused || forceCloseWindow) {
+      ignoreBlurRef.current = true;
       const tryClose = () => {
         window.focus();
         if (geminiWindowRef.current && !geminiWindowRef.current.closed) {
@@ -35,7 +37,10 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
       };
       tryClose();
       setTimeout(tryClose, 500);
-      setTimeout(tryClose, 1500);
+      setTimeout(() => {
+        tryClose();
+        ignoreBlurRef.current = false;
+      }, 2000);
     }
   }, [isPaused, forceCloseWindow]);
 
@@ -68,19 +73,11 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
       body: JSON.stringify({ teamId, type, count, ts: Date.now() }),
     }).catch(() => { }); // intentionally swallow errors — never disrupt gameplay
 
-    // Trigger instant disqualification for critical offenses
-    if (type === "copy_attempt" || type === "screenshot_attempt") {
-      if (isActiveRound && onDisqualify) {
-        onDisqualify(type);
-      }
-      return; // Stop here, no need to show a banner if they are disqualified or if we ignore it
+    // Trigger instant disqualification for ALL offenses
+    if (isActiveRound && onDisqualify) {
+      onDisqualify(type);
     }
-
-    showBanner(
-      type === "devtools"
-        ? "DEVTOOLS DETECTED"
-        : "UNAUTHORIZED ACTION"
-    );
+    return;
   }, [isPlayer, teamId, showBanner, onDisqualify, isActiveRound]);
 
   useEffect(() => {
@@ -90,11 +87,15 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     // 1. Tab / window visibility — detect switching away
     // ----------------------------------------------------------
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // [TEMPORARILY DISABLED]
-        // reportViolation("tab_switch");
-        // document.body.classList.add("ac-focus-lost");
-      } else {
+      if (ignoreBlurRef.current) return;
+
+      const geminiWin = geminiWindowRef.current;
+      const geminiAlive = geminiWin && !geminiWin.closed;
+
+      if (document.hidden && !geminiAlive) {
+        reportViolation("tab_switch");
+        document.body.classList.add("ac-focus-lost");
+      } else if (!document.hidden) {
         document.body.classList.remove("ac-focus-lost");
       }
     };
@@ -105,14 +106,18 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     //    popup is what caused it (best-effort).
     // ----------------------------------------------------------
     const handleWindowBlur = () => {
+      if (ignoreBlurRef.current) return;
+
       // Short delay so the popup's focus can register first
       setTimeout(() => {
+        if (ignoreBlurRef.current) return;
+
         const geminiWin = geminiWindowRef.current;
         const geminiAlive = geminiWin && !geminiWin.closed;
         // If Gemini popup is open and was just opened, don't flag
         if (!geminiAlive) {
-          // [TEMPORARILY DISABLED]
-          // document.body.classList.add("ac-focus-lost");
+          reportViolation("tab_switch");
+          document.body.classList.add("ac-focus-lost");
         }
       }, 200);
     };
@@ -129,17 +134,32 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     // ----------------------------------------------------------
     const handleKeyDown = (e) => {
       const ctrl = e.ctrlKey || e.metaKey;
+      const isInput = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
 
-      // Ctrl+C — intercept silently (player sees nothing wrong)
-      if (ctrl && e.key === "c") {
-        // Clear the clipboard silently so they can't paste the image
-        try {
-          navigator.clipboard.writeText("").catch(() => { });
-        } catch (_) { }
-        reportViolation("copy_attempt");
-        // DO NOT call e.preventDefault() — requirement says it shouldn't fail
-        // Just poison the clipboard content instead
+      // Block Win+V (Windows Clipboard History) specifically on Windows OS
+      const isWindows = navigator.userAgent.indexOf("Win") !== -1;
+      if (isWindows && e.metaKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        reportViolation("copy_attempt"); // using copy_attempt to show clipboard ban message
         return;
+      }
+
+      // Ctrl+C / Cmd+C
+      if (ctrl && e.key === "c") {
+        if (!isInput) {
+          try { navigator.clipboard.writeText("").catch(() => { }); } catch (_) { }
+          reportViolation("copy_attempt");
+          return;
+        }
+      }
+
+      // Ctrl+V / Cmd+V
+      if (ctrl && e.key === "v") {
+        if (!isInput) {
+          e.preventDefault();
+          reportViolation("paste_attempt");
+          return;
+        }
       }
 
       // PrintScreen
@@ -168,11 +188,12 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     };
 
     // ----------------------------------------------------------
-    // 4. Context menu (right-click) — disable silently on images
+    // 4. Context menu (right-click) — disable silently
     // ----------------------------------------------------------
     const handleContextMenu = (e) => {
-      if (e.target.tagName === "IMG") {
-        e.preventDefault();
+      const isInput = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+      if (!isInput) {
+        e.preventDefault(); // Just disable it, no ban
       }
     };
 
@@ -187,9 +208,16 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     };
 
     // ----------------------------------------------------------
-    // 6. Paste interception — block pasting images into the page
+    // 6. Paste interception — block pasting globally unless input
     // ----------------------------------------------------------
     const handlePaste = (e) => {
+      const isInput = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+      if (!isInput) {
+        e.preventDefault();
+        reportViolation("paste_attempt");
+        return;
+      }
+
       const items = e.clipboardData?.items || [];
       for (const item of items) {
         if (item.type.startsWith("image/")) {
@@ -198,7 +226,6 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
           return;
         }
       }
-      // Text paste is allowed (needed for Gemini link input)
     };
 
     // ----------------------------------------------------------
@@ -221,6 +248,8 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("dragstart", handleDragStart);
     document.addEventListener("paste", handlePaste);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("keydown", handleKeyDown, true); // capture phase
 
     return () => {
@@ -228,6 +257,8 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("dragstart", handleDragStart);
       document.removeEventListener("paste", handlePaste);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("keydown", handleKeyDown, true);
       clearInterval(devToolsCheckInterval);
       clearTimeout(bannerTimerRef.current);
@@ -235,7 +266,12 @@ function useAntiCheat({ isPlayer, teamId, onDisqualify, isPaused, forceCloseWind
     };
   }, [isPlayer, reportViolation]);
 
-  return { registerGeminiWindow };
+  const suspendAntiCheatForFilePicker = useCallback(() => {
+    ignoreBlurRef.current = true;
+    setTimeout(() => { ignoreBlurRef.current = false; }, 60000);
+  }, []);
+
+  return { registerGeminiWindow, suspendAntiCheatForFilePicker };
 }
 
 // ============================================================
@@ -245,7 +281,12 @@ const DisqualifiedScreen = ({ teamName, reason }) => {
     reason === "tab_switch" ? "TAB SWITCH DETECTED" :
       reason === "copy_attempt" ? "CLIPBOARD INTERCEPTED" :
         reason === "screenshot_attempt" ? "SCREENSHOT ATTEMPT DETECTED" :
-          "UNAUTHORIZED ACTION";
+          reason === "devtools" ? "DEVTOOLS DETECTED" :
+            reason === "right_click" ? "UNAUTHORIZED CONTEXT MENU" :
+              reason === "paste_attempt" ? "UNAUTHORIZED PASTE" :
+                reason === "drag_attempt" ? "IMAGE DRAG DETECTED" :
+                  reason === "paste_image_attempt" ? "IMAGE PASTE DETECTED" :
+                    "UNAUTHORIZED ACTION";
 
   return (
     <motion.div
@@ -1145,7 +1186,8 @@ const IntervalScreen = ({ title, message, timeLeft, isPaused, localDurationKey, 
           background: "linear-gradient(180deg, rgba(12,16,26,0.88) 0%, rgba(5,7,12,0.96) 100%)",
           boxShadow: "0 25px 70px rgba(0,0,0,0.95), 0 0 50px rgba(212,175,55,0.18), inset 0 1px 0 rgba(255,255,255,0.15)",
           backdropFilter: "blur(24px)",
-          overflow: "hidden"}}
+          overflow: "hidden"
+        }}
       >
         {/* Classic Corner Accents */}
         <div style={{ position: "absolute", top: 18, left: 18, width: 22, height: 22, borderTop: "2px solid #D4AF37", borderLeft: "2px solid #D4AF37", opacity: 0.85 }} />
@@ -1238,7 +1280,7 @@ const IntervalScreen = ({ title, message, timeLeft, isPaused, localDurationKey, 
   );
 };
 
-const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, roundLabel, storageKey, isPaused, timeLeft, isRoundEnded, teamId, registerGeminiWindow }) => {
+const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, roundLabel, storageKey, isPaused, timeLeft, isRoundEnded, teamId, registerGeminiWindow, suspendAntiCheatForFilePicker }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadedImgUrl, setUploadedImgUrl] = useState(null);
   const [isGeminiLaunched, setIsGeminiLaunched] = useState(false);
@@ -1266,7 +1308,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
     try {
       setIsSubmitted(localStorage.getItem(`maya_submitted_${teamId}_${storageKey}`) === "true");
       setSubmittedLink(localStorage.getItem(`maya_sublink_${teamId}_${storageKey}`) || "");
-    } catch {}
+    } catch { }
   }, [storageKey, teamId]);
 
   useEffect(() => {
@@ -1353,36 +1395,42 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
       return;
     }
     const linkToVerify = geminiLink.trim() || savedSessionLink;
-    if (!linkToVerify) {
+    if (!linkToVerify && storageKey !== "r3") {
       alert("SECURITY LOCK: You must paste your Gemini Chat Link to verify this spell.");
       return;
     }
-    setVerifying(true);
-    try {
-      const res = await fetch(`${API}/api/verify-gemini`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ link: linkToVerify })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert("LOCK REJECTED: " + (data.error || "Verification failed."));
+
+    if (linkToVerify) {
+      setVerifying(true);
+      try {
+        const res = await fetch(`${API}/api/verify-gemini`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ link: linkToVerify })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert("LOCK REJECTED: " + (data.error || "Verification failed."));
+          setVerifying(false);
+          return;
+        }
+      } catch (err) {
+        alert("Error verifying the Gemini link.");
+        setVerifying(false);
         return;
       }
-      try {
-        localStorage.setItem(`maya_submitted_${teamId}_${storageKey}`, "true");
-        localStorage.setItem(`maya_sublink_${teamId}_${storageKey}`, linkToVerify);
-        if (uploadedImgUrl) localStorage.setItem(`maya_subimg_${teamId}_${storageKey}`, uploadedImgUrl);
-      } catch (e) {}
-      setIsSubmitted(true);
-      setSubmittedLink(linkToVerify);
-      if (onImageUploaded) onImageUploaded(uploadedImgUrl, storageKey);
-      if (effectivelyEnded) {
-        onComplete(uploadedImgUrl, linkToVerify);
-      }
-    } catch (err) {
-      alert("Error verifying the Gemini link.");
-    } finally {
       setVerifying(false);
+    }
+
+    try {
+      localStorage.setItem(`maya_submitted_${teamId}_${storageKey}`, "true");
+      if (linkToVerify) localStorage.setItem(`maya_sublink_${teamId}_${storageKey}`, linkToVerify);
+      if (uploadedImgUrl) localStorage.setItem(`maya_subimg_${teamId}_${storageKey}`, uploadedImgUrl);
+    } catch (e) { }
+    setIsSubmitted(true);
+    setSubmittedLink(linkToVerify || "");
+    if (onImageUploaded) onImageUploaded(uploadedImgUrl, storageKey);
+    if (effectivelyEnded) {
+      onComplete(uploadedImgUrl, linkToVerify || "");
     }
   };
 
@@ -1582,7 +1630,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
             <motion.label title={effectivelyEnded ? "Round has ended. Uploads are locked." : "Click here to select and upload your final image artifact."} layout style={{ width: "100%", cursor: (uploading || effectivelyEnded) ? "not-allowed" : "pointer", opacity: effectivelyEnded ? 0.4 : 1 }}>
               <div style={{ width: "100%", padding: "16px", border: `1px solid ${effectivelyEnded ? 'rgba(255, 42, 42, 0.3)' : 'rgba(0, 255, 255, 0.3)'}`, borderRadius: 8, background: "rgba(0,0,0,0.6)", textAlign: "center", transition: "all 0.3s", boxShadow: effectivelyEnded ? 'inset 0 0 10px rgba(255, 42, 42, 0.05)' : 'inset 0 0 10px rgba(0, 255, 255, 0.05)' }}>
                 <span style={{ color: effectivelyEnded ? '#ff2a2a' : (uploading ? "var(--text-dim)" : "var(--neon-cyan)"), fontSize: 16, letterSpacing: 2, fontFamily: "'Orbitron'", fontWeight: "bold" }}>{effectivelyEnded ? "⛔ ROUND SEALED — UPLOADS LOCKED" : (uploading ? "UPLOADING ARTIFACT..." : "UPLOAD GENERATED IMAGE")}</span>
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading || effectivelyEnded} />
+                <input type="file" accept="image/*" style={{ display: "none" }} onClick={suspendAntiCheatForFilePicker} onChange={handleUpload} disabled={uploading || effectivelyEnded} />
               </div>
             </motion.label>
           ) : (
@@ -1625,8 +1673,17 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <div style={{ color: "var(--text-dim)", marginBottom: 8, fontSize: 14 }}>TARGET DATACRON:</div>
-          <motion.div layout className="glass-panel" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, maxHeight: 400, overflow: "hidden" }}>
-            {targetImage ? <motion.img layoutId="target-image" src={targetImage} alt="target" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ color: "var(--text-dim)", fontFamily: "'Orbitron'" }}>NO TARGET</div>}
+          <motion.div layout className="glass-panel" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, maxHeight: 400, overflow: "hidden", flexDirection: "column" }}>
+            {targetImage ? (
+              <motion.img layoutId="target-image" src={targetImage} alt="target" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                <img src={gdgLogo} alt="GDG Logo" style={{ width: 80, marginBottom: 16, opacity: 0.5 }} />
+                <div style={{ color: "var(--neon-red)", fontFamily: "'Orbitron'", fontSize: 14, textAlign: "center", letterSpacing: 1 }}>
+                  {storageKey === "r1" ? "AWAITING TARGET DATACRON" : "IMAGE NOT SUBMITTED IN PREV ROUND"}
+                </div>
+              </div>
+            )}
           </motion.div>
         </div>
       </div>
@@ -1789,15 +1846,23 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
 
   const phase = currentTeamState.phase || (myTeam ? "lobby" : "register");
   const disqualifiedReason = currentTeamState.disqualifiedReason || null;
-  const r1Img = currentTeamState.r1Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r1`) : null) || null;
-  const r2Img = currentTeamState.r2Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r2`) : null) || null;
-  const r3Img = currentTeamState.r3Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r3`) : null) || null;
+  let r1Img = currentTeamState.r1Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r1`) : null) || null;
+  let r2Img = currentTeamState.r2Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r2`) : null) || null;
+  let r3Img = currentTeamState.r3Img || (myTeam?.id ? localStorage.getItem(`maya_subimg_${myTeam.id}_r3`) : null) || null;
+
   const finalImg = currentTeamState.finalImage || null;
   const score = currentTeamState.score || null;
 
   const [targetImage, setTargetImage] = useState(() => {
     try { return localStorage.getItem("maya_targetImage") || null; } catch { return null; }
   });
+
+  // Safeguard: If the submitted image exactly matches the original target image, it's a corrupted record from the old bug. Clear it dynamically.
+  if (targetImage) {
+    if (r1Img === targetImage) r1Img = null;
+    if (r2Img === targetImage) r2Img = null;
+    if (r3Img === targetImage) r3Img = null;
+  }
 
   useEffect(() => {
     if (targetImage) localStorage.setItem("maya_targetImage", targetImage);
@@ -1813,32 +1878,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
     }
   }, [myTeam?.id, targetImage]);
 
-  // Ensure previous round's image is always fetched from backend if missing in Round 2 or Round 3!
-  useEffect(() => {
-    if (!myTeam?.id) return;
-    if ((phase === "r2" || phase === "wait_for_r2_end" || phase === "interval1") && !r1Img) {
-      fetch(`${API}/api/target-image?teamId=${myTeam.id}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.url) {
-            setR1Img(d.url);
-            try { localStorage.setItem(`maya_subimg_${myTeam.id}_r1`, d.url); } catch {}
-          }
-        })
-        .catch(() => {});
-    }
-    if ((phase === "r3" || phase === "wait_for_r3_end" || phase === "interval2" || phase === "select" || phase === "judgment") && !r2Img) {
-      fetch(`${API}/api/target-image?teamId=${myTeam.id}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.url) {
-            setR2Img(d.url);
-            try { localStorage.setItem(`maya_subimg_${myTeam.id}_r2`, d.url); } catch {}
-          }
-        })
-        .catch(() => {});
-    }
-  }, [phase, myTeam?.id, r1Img, r2Img]);
+
 
   const updateTeamStatus = async (updates) => {
     setLocalTeamState(prev => ({ ...prev, ...updates }));
@@ -1942,11 +1982,14 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
 
   const isPaused = session?.isPaused || false;
   const forceCloseWindow = isPaused || (timeLeft <= 0 && session?.status?.includes('_active'));
-  const isActiveRound = session?.status?.includes('_active') || false;
+  const isActiveRound = (session?.status?.includes('_active') && timeLeft > 0) || false;
+
+  // Disable anti-cheat if it's the admin panel, if testing locally (localhost), or if ?test=true
+  const isTestingLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.search.includes('test=true') || window.location.hash === '#admin';
 
   // Anti-cheat hook — active only for player view
-  const { registerGeminiWindow } = useAntiCheat({
-    isPlayer: true,
+  const { registerGeminiWindow, suspendAntiCheatForFilePicker } = useAntiCheat({
+    isPlayer: !isTestingLocal,
     teamId: myTeam?.id || null,
     onDisqualify: handleDisqualify,
     isPaused,
@@ -2016,6 +2059,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
     isPaused,
     timeLeft: displayTimeLeft,
     registerGeminiWindow,
+    suspendAntiCheatForFilePicker,
     onImageUploaded: (img, key) => {
       if (key === 'r1') setR1Img(img);
       if (key === 'r2') setR2Img(img);
