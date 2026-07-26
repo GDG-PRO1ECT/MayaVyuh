@@ -1144,8 +1144,7 @@ const IntervalScreen = ({ title, message, timeLeft, isPaused, localDurationKey, 
           background: "linear-gradient(180deg, rgba(12,16,26,0.88) 0%, rgba(5,7,12,0.96) 100%)",
           boxShadow: "0 25px 70px rgba(0,0,0,0.95), 0 0 50px rgba(212,175,55,0.18), inset 0 1px 0 rgba(255,255,255,0.15)",
           backdropFilter: "blur(24px)",
-          overflow: "hidden"
-        }}
+          overflow: "hidden"}}
       >
         {/* Classic Corner Accents */}
         <div style={{ position: "absolute", top: 18, left: 18, width: 22, height: 22, borderTop: "2px solid #D4AF37", borderLeft: "2px solid #D4AF37", opacity: 0.85 }} />
