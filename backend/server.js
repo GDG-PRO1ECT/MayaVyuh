@@ -34,6 +34,7 @@ app.use(cors());
 app.use(express.json());
 
 const multer = require('multer');
+const sharp = require('sharp');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -196,8 +197,17 @@ app.post('/api/player/upload-submission', upload.single('image'), async (req, re
       return res.status(400).json({ success: false, error: "teamId and round are required" });
     }
 
-    const fileContent = req.file.buffer;
-    const extension = req.file.originalname.split('.').pop().replace(/[^a-zA-Z0-9]/g, '');
+    let fileContent;
+    try {
+      fileContent = await sharp(req.file.buffer)
+        .rotate()
+        .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    } catch (compressionErr) {
+      console.error("Submission image compression failed:", compressionErr);
+      return res.status(400).json({ success: false, error: "Uploaded file is not a valid image" });
+    }
 
     const team = await Team.findById(teamId);
     if (!team) {
@@ -207,13 +217,13 @@ app.post('/api/player/upload-submission', upload.single('image'), async (req, re
     const sanitizedTeamName = team.name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
 
     // Always perfectly organize by team and round
-    const key = `submissions/${sanitizedTeamName}/round${round}.${extension}`;
+    const key = `submissions/${sanitizedTeamName}/round${round}.jpg`;
 
     const command = new PutObjectCommand({
       Bucket: (process.env.AWS_S3_BUCKET_NAME || process.env.AWS_S3_Bucket_name),
       Key: key,
       Body: fileContent,
-      ContentType: req.file.mimetype,
+      ContentType: "image/jpeg",
     });
 
     await s3.send(command);
