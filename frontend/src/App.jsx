@@ -1324,6 +1324,7 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
   };
 
   const handleUpload = async (e) => {
+    if (effectivelyEnded) return; // Block uploads after round ends
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
@@ -1577,10 +1578,10 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
           )}
 
           {!uploadedImgUrl ? (
-            <motion.label title="Click here to select and upload your final image artifact." layout style={{ width: "100%", cursor: uploading ? "not-allowed" : "pointer" }}>
-              <div style={{ width: "100%", padding: "16px", border: "1px solid rgba(0, 255, 255, 0.3)", borderRadius: 8, background: "rgba(0,0,0,0.6)", textAlign: "center", transition: "all 0.3s", boxShadow: "inset 0 0 10px rgba(0, 255, 255, 0.05)" }}>
-                <span style={{ color: uploading ? "var(--text-dim)" : "var(--neon-cyan)", fontSize: 16, letterSpacing: 2, fontFamily: "'Orbitron'", fontWeight: "bold" }}>{uploading ? "UPLOADING ARTIFACT..." : "UPLOAD GENERATED IMAGE"}</span>
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading} />
+            <motion.label title={effectivelyEnded ? "Round has ended. Uploads are locked." : "Click here to select and upload your final image artifact."} layout style={{ width: "100%", cursor: (uploading || effectivelyEnded) ? "not-allowed" : "pointer", opacity: effectivelyEnded ? 0.4 : 1 }}>
+              <div style={{ width: "100%", padding: "16px", border: `1px solid ${effectivelyEnded ? 'rgba(255, 42, 42, 0.3)' : 'rgba(0, 255, 255, 0.3)'}`, borderRadius: 8, background: "rgba(0,0,0,0.6)", textAlign: "center", transition: "all 0.3s", boxShadow: effectivelyEnded ? 'inset 0 0 10px rgba(255, 42, 42, 0.05)' : 'inset 0 0 10px rgba(0, 255, 255, 0.05)' }}>
+                <span style={{ color: effectivelyEnded ? '#ff2a2a' : (uploading ? "var(--text-dim)" : "var(--neon-cyan)"), fontSize: 16, letterSpacing: 2, fontFamily: "'Orbitron'", fontWeight: "bold" }}>{effectivelyEnded ? "⛔ ROUND SEALED — UPLOADS LOCKED" : (uploading ? "UPLOADING ARTIFACT..." : "UPLOAD GENERATED IMAGE")}</span>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading || effectivelyEnded} />
               </div>
             </motion.label>
           ) : (
@@ -1594,12 +1595,8 @@ const RoundDisplay = ({ playerLabel, targetImage, onComplete, onImageUploaded, r
                 <input title="Paste your final Gemini AI chat link here." type="url" placeholder="https://gemini.google.com/app/..." value={geminiLink} onChange={e => setGeminiLink(e.target.value)} style={{ width: "100%", padding: "16px", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-cyan)", color: "#fff", fontFamily: "'Share Tech Mono'", outline: "none", borderRadius: 4 }} />
               </div>
               <div style={{ display: "flex", gap: 16 }}>
-                <button title="Clear the uploaded image to try again." className="btn-imperial-danger" style={{ flex: 1, padding: 16 }} onClick={() => setUploadedImgUrl(null)}>RETRY</button>
-                {/*
-                  // Original feature: submission not allowed till timer ends
-                  <button className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: (!effectivelyEnded ? "var(--text-dim)" : "var(--neon-green)"), color: (!effectivelyEnded ? "var(--text-dim)" : "var(--neon-green)"), opacity: (verifying || !effectivelyEnded) ? 0.5 : 1, cursor: !effectivelyEnded ? "not-allowed" : "pointer" }} onClick={effectivelyEnded ? handleSubmit : undefined} disabled={verifying || !effectivelyEnded}>{verifying ? "VERIFYING..." : (!effectivelyEnded ? "AWAITING ROUND END..." : "SUBMIT TO DATACRON ➔")}</button>
-                */}
-                <button title="Submit your image and link to the Datacron for scoring." className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: "var(--neon-green)", color: "var(--neon-green)", opacity: verifying ? 0.5 : 1, cursor: "pointer" }} onClick={handleSubmit} disabled={verifying}>{verifying ? "VERIFYING..." : "SUBMIT TO DATACRON ➔"}</button>
+                <button title={effectivelyEnded ? "Round has ended. Cannot retry." : "Clear the uploaded image to try again."} className="btn-imperial-danger" style={{ flex: 1, padding: 16, opacity: effectivelyEnded ? 0.4 : 1, cursor: effectivelyEnded ? "not-allowed" : "pointer" }} onClick={effectivelyEnded ? undefined : () => setUploadedImgUrl(null)} disabled={effectivelyEnded}>RETRY</button>
+                <button title={effectivelyEnded ? "Round has ended. Submissions are locked." : "Submit your image and link to the Datacron for scoring."} className="btn-imperial" style={{ flex: 2, padding: 16, borderColor: effectivelyEnded ? "#ff2a2a" : "var(--neon-green)", color: effectivelyEnded ? "#ff2a2a" : "var(--neon-green)", opacity: (verifying || effectivelyEnded) ? 0.5 : 1, cursor: effectivelyEnded ? "not-allowed" : "pointer" }} onClick={effectivelyEnded ? undefined : handleSubmit} disabled={verifying || effectivelyEnded}>{effectivelyEnded ? "⛔ ROUND SEALED" : (verifying ? "VERIFYING..." : "SUBMIT TO DATACRON ➔")}</button>
               </div>
             </motion.div>
           )}
