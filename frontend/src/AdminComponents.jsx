@@ -1333,9 +1333,9 @@ export const AdminDashboard = ({ teams, setTeams, eventState, setEventState }) =
                       {t.r2Link && <a href={t.r2Link} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "var(--neon-cyan)", textDecoration: "none", letterSpacing: 1 }}>➔ VERIFY R2 CHAT SNAPSHOT</a>}
                       {t.r3Link && <a href={t.r3Link} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "var(--neon-cyan)", textDecoration: "none", letterSpacing: 1 }}>➔ VERIFY R3 CHAT SNAPSHOT</a>}
                     </div>
-                    <button title="Ban or unban this team from the game." className={t.status === "banned" ? "btn-imperial" : "btn-imperial-danger"} style={{ padding: "12px", fontSize: 10, letterSpacing: 2, marginTop: 8 }} onClick={() => toggleBan(t.id)}>
+                    {/*<button title="Ban or unban this team from the game." className={t.status === "banned" ? "btn-imperial" : "btn-imperial-danger"} style={{ padding: "12px", fontSize: 10, letterSpacing: 2, marginTop: 8 }} onClick={() => toggleBan(t.id)}>
                       {t.status === "banned" ? "RESTORE TO GLORY" : "BANISH FROM DATACRON"}
-                    </button>
+                    </button>*/}
                   </div>
                 ))}
                 {teams.length === 0 && <div style={{ color: "#718096", textAlign: "center", padding: 40, letterSpacing: 2, fontSize: 12 }}>ROSTER EMPTY</div>}

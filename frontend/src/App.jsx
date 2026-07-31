@@ -1904,6 +1904,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
   const [session, setSession] = useState(null);
 
   const handleDisqualify = useCallback((reason) => {
+    /*
     if (!myTeam) return;
     setDisqualifiedReason(reason);
 
@@ -1912,6 +1913,7 @@ const PlayerSection = ({ globalTeams, setGlobalTeams }) => {
 
     // Try to update backend if endpoint exists (fire and forget)
     fetch(`${API}/api/game/teams/${myTeam.id}/ban`, { method: "POST" }).catch((e) => { console.error(e); });
+    */
   }, [myTeam, setDisqualifiedReason, setGlobalTeams]);
 
   useEffect(() => {
