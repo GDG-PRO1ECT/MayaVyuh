@@ -101,7 +101,7 @@ router.post('/game/teams/register', async (req, res) => {
 });
 
 // Ban or update a Team status
-router.post('/game/teams/:id/ban', async (req, res) => {
+/* router.post('/game/teams/:id/ban', async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ error: 'Team not found' });
@@ -111,7 +111,7 @@ router.post('/game/teams/:id/ban', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}); */
 
 // Update a Team
 router.put('/game/teams/:id', async (req, res) => {
